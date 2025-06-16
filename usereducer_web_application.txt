@@ -1,0 +1,477 @@
+import React, { useContext } from "react";
+import { Navigate } from "react-router-dom";
+import { GlobalContext } from "../services/GlobalContext";
+
+export const ProtectedRoute = ({ children }) => {
+  const { state } = useContext(GlobalContext);
+
+  return state.access ? children : <Navigate to="/login" />;
+};
+
+`````
+
+
+
+
+import axios from "axios";
+
+const VITE_API = import.meta.env.VITE_API;
+
+const API = axios.create({
+  baseURL: VITE_API,
+});
+
+// Attach access token to headers if available
+API.interceptors.request.use(config => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor to handle token refresh
+API.interceptors.response.use(
+  response => response,
+  async error => {
+    const originalRequest = error.config;
+
+    if (error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+        if (!refreshToken) throw new Error("No refresh token");
+
+        // Call refresh token endpoint
+        const response = await axios.post(`${VITE_API}/refresh-token`, {
+          refreshtoken: refreshToken,
+        });
+
+        console.log("this is for refresh API token", response)
+
+        const newAccessToken = response.data.token.access_token;
+        const newRefreshToken = response.data.token.refresh_token;
+
+        // Save new tokens
+        localStorage.setItem("token", newAccessToken);
+        localStorage.setItem("refreshToken", newRefreshToken);
+
+        // Update Authorization header and retry original request
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return API(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed, logout or redirect
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/login"; // or use react-router Navigate logic
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default API;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // Response interceptor to handle token refresh
+// API.interceptors.response.use(
+//   response => response,
+//   async error => {
+//     const originalRequest = error.config;
+
+//     if (error.response.status === 401 && !originalRequest._retry) {
+//       originalRequest._retry = true;
+
+//       try {
+//         const refreshToken = localStorage.getItem("refreshToken");
+//         if (!refreshToken) throw new Error("No refresh token");
+
+//         // Call refresh token endpoint
+//         const response = await axios.post(`${VITE_API}/refresh-token`, {
+//           refreshtoken: refreshToken,
+//         });
+
+//         console.log("this is for refresh API token", response)
+
+//         const newAccessToken = response.data.token.access_token;
+//         const newRefreshToken = response.data.token.refresh_token;
+
+//         // Save new tokens
+//         localStorage.setItem("accessToken", newAccessToken);
+//         localStorage.setItem("refreshToken", newRefreshToken);
+
+//         // Update Authorization header and retry original request
+//         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+//         return API(originalRequest);
+//       } catch (refreshError) {
+//         // Refresh failed, logout or redirect
+//         localStorage.removeItem("accessToken");
+//         localStorage.removeItem("refreshToken");
+//         window.location.href = "/login"; // or use react-router Navigate logic
+//         return Promise.reject(refreshError);
+//       }
+//     }
+
+//     return Promise.reject(error);
+//   }
+// );
+
+// export default API;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import jwtDecode from "jwt-decode";
+
+// export const isTokenExpired = (token) => {
+//   if (!token) return true;
+//   try {
+//     const { exp } = jwtDecode(token);
+//     if (!exp) return true;
+//     return Date.now() >= exp * 1000; // exp is in seconds, JS time is ms
+//   } catch (error) {
+//     return true; // malformed token
+//   }
+// };
+
+
+
+
+
+
+// import React, { useEffect, useState } from "react";
+// import { isTokenExpired } from "./utils"; // the function above
+// import API from "./API"; // axios instance with interceptor
+// import { Navigate } from "react-router-dom";
+
+// const App = () => {
+//   const [checkingAuth, setCheckingAuth] = useState(true);
+//   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+//   useEffect(() => {
+//     const checkAuth = async () => {
+//       const accessToken = localStorage.getItem("accessToken");
+//       const refreshToken = localStorage.getItem("refreshToken");
+
+//       if (!accessToken) {
+//         setIsAuthenticated(false);
+//         setCheckingAuth(false);
+//         return;
+//       }
+
+//       if (!isTokenExpired(accessToken)) {
+//         // Token valid
+//         setIsAuthenticated(true);
+//         setCheckingAuth(false);
+//       } else {
+//         // Access token expired, try to refresh
+//         if (!refreshToken) {
+//           setIsAuthenticated(false);
+//           setCheckingAuth(false);
+//           return;
+//         }
+
+//         try {
+//           const response = await API.post("/refresh-token", { token: refreshToken });
+
+//           localStorage.setItem("accessToken", response.data.accessToken);
+//           localStorage.setItem("refreshToken", response.data.refreshToken);
+
+//           setIsAuthenticated(true);
+//           setCheckingAuth(false);
+//         } catch (error) {
+//           // Refresh failed
+//           localStorage.removeItem("accessToken");
+//           localStorage.removeItem("refreshToken");
+//           setIsAuthenticated(false);
+//           setCheckingAuth(false);
+//         }
+//       }
+//     };
+
+//     checkAuth();
+//   }, []);
+
+//   if (checkingAuth) {
+//     // Show a loader while checking auth state
+//     return <div>Loading...</div>;
+//   }
+
+//   if (!isAuthenticated) {
+//     return <Navigate to="/login" />;
+//   }
+
+//   return (
+//     // Your protected app routes or components
+//     <YourProtectedApp />
+//   );
+// };
+
+// export default App;
+
+
+
+
+
+
+
+// import React, { useContext } from "react";
+// import { Navigate } from "react-router-dom";
+// import { AuthContext } from "./AuthContext"; // assuming you have one
+
+// export const ProtectedRoute = ({ children }) => {
+//   const { auth } = useContext(AuthContext);
+
+//   if (auth.loading) return <div>Loading...</div>;
+
+//   return auth.accessToken ? children : <Navigate to="/login" />;
+// };
+
+
+``````
+
+
+import { jwtDecode } from "jwt-decode";
+import API from "./API";
+// const VITE_API = import.meta.env.VITE_API;
+
+
+const signup = async (data) => {
+  try {
+    const response = await API.post("/signup", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const forgot = async (data) => {
+  try {
+    const response = await API.post("/forgot_password_request", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const login = async (data) => {
+  try {
+    const response = await API.post("/login", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const resetPassword = async (data) =>{
+  try {
+    const response = await API.post("/reset_password", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+}
+
+const imageRecognition = async (data, token) => {
+  const response = await API.post("/image_recognizor/", data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response;
+};
+
+const verification = async (data, token) => {
+  try {
+    const response = await API.post("/verify_otp", data, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const termsandcondition = async (data) => {
+  const response = await API.post("/terms_accepted", data)
+  return response;
+};
+
+const resendOTP = async (data) => {
+  try {
+    const response = await API.post("/resend_otp", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const decodeToken = (token) => {
+  try {
+    const decodedToken = jwtDecode(token);
+    return decodedToken;
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return null;
+  }
+};
+
+const logout = () => {
+  localStorage.clear();
+};
+
+export { imageRecognition, signup, logout, resendOTP, verification, login, decodeToken, forgot, resetPassword, termsandcondition };
+
+
+const localToken = localStorage.getItem("token");
+const localUser = localStorage.getItem("user");
+// const localTermsandCondition = JSON.parse(localStorage.getItem("tandc_accepted"));
+
+// console.log("localTermsandCondition",localTermsandCondition);
+
+
+// case "SET_TERMANDCONDITION":
+//   return { ...state, termsandcondition: true };
+ // termsandcondition : localTermsandCondition,
+
+export const initialState = {
+  access: !!localToken,
+  user: localUser,
+  birdDetail: null,
+ 
+};
+
+export const AppReducer = (state, action) => {
+  switch (action.type) {
+    case "1stepRegistration":
+      return { ...state, otpModule: action.payload };
+    case "login":
+      return { ...state, access: true };
+    case "SET_USER":
+      return { ...state, user: action.payload };
+    case "SET_BIRDDETAIL":
+      return { ...state, birdDetail: action.payload };
+    case "logout":
+      return {
+        ...state,
+        access: false,
+        user: null,
+        cart: [],
+      };
+    default:
+      return state;
+  }
+};
+
+
+
+
+import React, { createContext, useReducer } from 'react';
+import { AppReducer, initialState } from './AppReducer';
+
+export const GlobalContext = createContext();
+
+export const GlobalProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(AppReducer, initialState);
+
+  return (
+    <GlobalContext.Provider value={{ state, dispatch }}>
+      {children}
+    </GlobalContext.Provider>
+  );
+};
+
+
+import { Routes, Route } from "react-router-dom";
+import { Home } from "./components/Home";
+import { DetailsPage } from "./components/DetailsPage";
+import { Login } from "./components/Login";
+import { Register } from "./components/Register";
+import { Verification } from "./components/Verification";
+import { ProtectedRoute } from "./routeAuthentication/ProtectedRoute ";
+import { Forgot } from "./components/Forgot";
+import { ResetPassword } from "./components/ResetPassword";
+import { Toaster } from 'react-hot-toast';
+
+function App() {
+
+  return (
+    <>
+     <Toaster />
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verification" element={<Verification />} />
+        <Route path="/forgot" element={<Forgot />} />
+        <Route path="/resetpassword" element={<ResetPassword />} />
+        <Route
+          path="/detailspage"
+          element={
+            <ProtectedRoute>
+              <DetailsPage />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+export default App;
+
+
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App.jsx";
+import "../src/css/home.scss";
+import "bootstrap/dist/css/bootstrap.css";
+import "bootstrap/dist/css/bootstrap.min.css";
+import { GlobalProvider } from "./services/GlobalContext.jsx";
+
+createRoot(document.getElementById("root")).render(
+  <GlobalProvider>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </GlobalProvider>
+);
