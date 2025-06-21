@@ -1,0 +1,799 @@
+import React from "react";
+import { Otp } from "./Otp";
+
+export const OtpModule = ({
+  email,
+  otp,
+  setOtp,
+  handleResendOTP,
+  handleOtpSubmit,
+  setOtpModalOpen,
+}) => {
+  return (
+    <>
+      <div className="otp-modal-overlay">
+        <div className="position-absolute top-50 start-50 translate-middle w-auto">
+          <div className="bg-white shadow-lg w-full max-w-md rounded-3 p-3">
+            <h3 className="mb-8 text-center">
+              Enter OTP sent to{" "}
+              <span className="text-center text-primary">{email}</span>
+            </h3>
+
+            <Otp length={6} onOtpSubmit={(otp) => setOtp(otp)} />
+
+            <div className="d-flex align-items-center justify-content-between gap-3 mt-4 ">
+              <div>
+                <button onClick={handleResendOTP} className="btn btn-danger">
+                  Resend OTP
+                </button>
+              </div>
+              <div className="d-flex gap-3">
+                <button
+                  onClick={handleOtpSubmit}
+                  className="btn btn-success"
+                  disabled={otp.length !== 6}
+                >
+                  Verify OTP
+                </button>
+                <button
+                  onClick={() => setOtpModalOpen(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+import React, { useEffect, useRef, useState } from "react";
+
+export const Otp = ({ length = 6, onOtpSubmit = () => {} }) => {
+  const [otp, setOtp] = useState(new Array(length).fill(""));
+  const inputRefs = useRef([]);
+
+  useEffect(() => {
+    inputRefs.current[0]?.focus();
+  }, []);
+
+  const handleChange = (index, e) => {
+    const value = e.target.value;
+
+    if (!value) return;
+
+    const values = value.split("").filter((char) => !isNaN(char));
+
+    // console.log("values", values);
+
+    if (values.length === 0) return;
+
+    const newOtp = [...otp];
+    let i = index;
+
+    values.forEach((val) => {
+      if (i < length) {
+        newOtp[i] = val;
+        i++;
+      }
+    });
+
+    setOtp(newOtp);
+
+    // Focus the next empty input
+    const nextIndex = newOtp.findIndex((val, idx) => val === "" && idx > index);
+    if (nextIndex !== -1) {
+      inputRefs.current[nextIndex]?.focus();
+    } else if (i <= length - 1) {
+      inputRefs.current[i]?.focus();
+    }
+
+    const combined = newOtp.join("");
+    if (combined.length === length) {
+      onOtpSubmit(combined);
+    }
+  };
+
+  const handleClick = (index) => {
+    inputRefs.current[index]?.setSelectionRange(1, 1);
+    if (index > 0 && !otp[index - 1]) {
+      const firstEmpty = otp.indexOf("");
+      if (firstEmpty !== -1) {
+        inputRefs.current[firstEmpty]?.focus();
+      }
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace") {
+      const newOtp = [...otp];
+      newOtp[index] = "";
+      if (otp[index]) {
+        inputRefs.current[index - 1]?.focus();
+        setOtp(newOtp);
+      } else if (index > 0) {
+        // Move focus to previous field and also clear it
+        inputRefs.current[index - 1]?.focus();
+        newOtp[index - 1] = "";
+        setOtp(newOtp);
+      }
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData("Text").trim();
+    const values = pasteData
+      .split("")
+      .filter((char) => !isNaN(char))
+      .slice(0, length);
+
+    if (values.length === 0) return;
+
+    const newOtp = [...otp];
+    for (let i = 0; i < values.length; i++) {
+      newOtp[i] = values[i];
+    }
+
+    setOtp(newOtp);
+
+    const combined = newOtp.join("");
+    if (combined.length === length) {
+      onOtpSubmit(combined);
+    }
+
+    const nextIndex = values.length < length ? values.length : length - 1;
+    inputRefs.current[nextIndex]?.focus();
+  };
+
+  return (
+    <div className="d-flex align-items-center justify-content-center gap-2 p-4">
+      {otp.map((value, index) => (
+        <input
+          key={index}
+          ref={(input) => (inputRefs.current[index] = input)}
+          type="text"
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => handleChange(index, e)}
+          onClick={() => handleClick(index)}
+          onKeyDown={(e) => handleKeyDown(index, e)}
+          onPaste={handlePaste}
+          className="text-center border border-gray-300 inputcontroler"
+        />
+      ))}
+    </div>
+  );
+};
+
+import { useEffect, useContext, useState } from "react";
+import { GlobalContext } from "../services/GlobalContext";
+import { useNavigate } from "react-router-dom";
+import { logout } from "../services/ApiServiceProvider";
+import { Alert } from "../components/Alert";
+
+export const FreeAccessRoute = ({ children }) => {
+  const { dispatch } = useContext(GlobalContext);
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    const accessToken = localStorage.getItem("token");
+    const refreshToken = localStorage.getItem("refreshToken");
+
+    if (accessToken || refreshToken) {
+      setShowModal(true); // Show custom modal
+    }
+  }, []);
+
+  const handleSuccess = () => {
+    setShowModal(false);
+    dispatch({ type: "logout" });
+    logout();
+    navigate("/login"); // Or navigate to login
+  };
+
+  const handleFailer = () => {
+    setShowModal(false); // Hide modal if user cancels
+    navigate("/"); // Or back to home
+  };
+
+  return (
+    <>
+      {showModal && <Alert handleSuccess={handleSuccess} handleFailer={handleFailer} />}
+      {!showModal && children}
+    </>
+  );
+};
+
+
+
+
+
+
+
+
+
+
+// import { useEffect, useContext } from "react";
+// import { GlobalContext } from "../services/GlobalContext";
+// import { useNavigate } from "react-router-dom";
+// import { logout } from "../services/ApiServiceProvider";
+
+// export const FreeAccessRoute = ({ children }) => {
+//   const { dispatch } = useContext(GlobalContext);
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const accessToken = localStorage.getItem("token");
+//     const refreshToken = localStorage.getItem("refreshToken");
+
+//     if (accessToken || refreshToken) {
+//       dispatch({ type: "logout" });
+//       logout();
+//       navigate("/"); 
+//     }
+//   }, [dispatch, navigate]);
+
+//   return children;
+// };
+
+
+
+
+
+
+
+// here the user will show logout message 
+
+// import { useEffect, useContext } from "react";
+// import { GlobalContext } from "../services/GlobalContext";
+// import { useNavigate } from "react-router-dom";
+// import { logout } from "../services/ApiServiceProvider";
+
+// export const FreeAccessRoute = ({ children }) => {
+//   const { dispatch } = useContext(GlobalContext);
+//   const navigate = useNavigate();
+
+//   useEffect(() => {
+//     const accessToken = localStorage.getItem("token");
+//     const refreshToken = localStorage.getItem("refreshToken");
+
+//     if (accessToken || refreshToken) {
+//       const confirmLogout = window.confirm("You are about to log out. Continue?");
+//       if (confirmLogout) {
+//         dispatch({ type: "logout" });
+//         logout();
+//         navigate("/"); // Or stay on /login
+//       } else {
+//         // Cancel navigation by going back to previous route
+//         navigate("/"); // or navigate("/") to home
+//       }
+//     }
+//   }, [dispatch, navigate]);
+
+//   return children;
+// };
+
+
+
+
+import React, { useContext } from "react";
+import { Navigate } from "react-router-dom";
+import { GlobalContext } from "../services/GlobalContext";
+
+export const ProtectedRoute = ({ children }) => {
+  const { state } = useContext(GlobalContext);
+
+  return state.isLoggedIn ? children : <Navigate to="/login" />;
+};
+import axios from "axios";
+
+const VITE_BACKEND_ENDPOINT_URL = import.meta.env.VITE_BACKEND_ENDPOINT_URL;
+
+const API = axios.create({
+  baseURL: VITE_BACKEND_ENDPOINT_URL,
+});
+
+// Attach token to headers if available
+API.interceptors.request.use(config => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor to handle token refresh
+API.interceptors.response.use(
+  response => response,
+  async error => {
+    const originalRequest = error.config;
+
+    // Avoid retry loop
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+        if (!refreshToken) throw new Error("No refresh token");
+
+        // Use a basic axios instance to prevent interceptor loops
+        const refreshResponse = await axios.post(`${VITE_BACKEND_ENDPOINT_URL}/refresh-token`, {
+          refreshtoken: refreshToken,
+        });
+
+        if (refreshResponse.status === 200) {
+          // console.log("Token refreshed:", refreshResponse);
+
+          const newAccessToken = refreshResponse.data.data.access_token;
+          const newRefreshToken = refreshResponse.data.data.refresh_token;
+
+          localStorage.setItem("token", newAccessToken);
+          localStorage.setItem("refreshToken", newRefreshToken);
+
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return API(originalRequest);
+        } else {
+          throw new Error("Failed to refresh token");
+        }
+      } catch (refreshError) {
+        console.error("Refresh token failed", refreshError);
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/login";
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export default API;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { jwtDecode } from "jwt-decode";
+import API from "./API";
+import FreeAPI from "./FreeApi";
+
+const signup = async (data) => {
+  try {
+    const response = await FreeAPI.post("/signup", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const forgot = async (data) => {
+  try {
+    const response = await FreeAPI.post("/forgot_password_request", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const login = async (data) => {
+  try {
+    const response = await FreeAPI.post("/login", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const resetPassword = async (data) => {
+  try {
+    const response = await FreeAPI.post("/reset_password", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const imageRecognition = async (data, token) => {
+  const response = await API.post("/image_recognizor/", data, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response;
+};
+
+const verification = async (data, token) => {
+  try {
+    const response = await FreeAPI.post("/verify_otp", data, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const termsandcondition = async (data) => {
+  const response = await FreeAPI.post("/terms_accepted", data);
+  return response;
+};
+
+const resendOTP = async (data) => {
+  try {
+    const response = await FreeAPI.post("/resend_otp", data);
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const refreshAccessToken = async (data) => {
+  try {
+    const response = await FreeAPI.post("/refresh-token", {
+      refreshtoken : data
+    });
+    return response;
+  } catch (error) {
+    return error.response;
+  }
+};
+
+const decodeToken = (token) => {
+  try {
+    const decodedToken = jwtDecode(token);
+    return decodedToken;
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return null;
+  }
+};
+
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const decodedToken = jwtDecode(token);
+    const currentTime = Date.now() / 1000;
+    // console.log(currentTime);
+    return decodedToken.exp < currentTime;
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return true;
+  }
+};
+
+const getBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
+
+const logout = () => {
+  localStorage.clear();
+};
+
+export {
+  imageRecognition,
+  signup,
+  logout,
+  resendOTP,
+  verification,
+  login,
+  decodeToken,
+  forgot,
+  resetPassword,
+  refreshAccessToken,
+  termsandcondition,
+  isTokenExpired,
+  getBase64,
+};
+const localToken = localStorage.getItem("token");
+const localUser = localStorage.getItem("user");
+const localHistory = JSON.parse(localStorage.getItem("history"));
+
+export const initialState = {
+  isLoggedIn: !!localToken,
+  userName: localUser,
+  localHistory: localHistory,
+  birdDetail: null,
+  isResetEmailSet: null,
+  uploadResponse: null,
+};
+
+export const AppReducer = (state, action) => {
+  switch (action.type) {
+    case "1stepRegistration":
+      return { ...state, otpModule: action.payload };
+    case "login":
+      return { ...state, isLoggedIn: true };
+    case "SET_USER":
+      return { ...state, userName: action.payload };
+    case "SET_BIRDDETAIL":
+      return { ...state, birdDetail: action.payload };
+    case "Email_Setter":
+      return { ...state, isResetEmailSet: action.payload };
+    case "Upload_Response":
+      return { ...state, uploadResponse: action.payload };
+      case "SET_LOCAL_HISTORY":
+      return { ...state, localHistory: action.payload };
+      
+
+    case "logout":
+      return {
+        ...state,
+        isLoggedIn: false,
+        userName: null,
+      };
+    default:
+      return state;
+  }
+};
+
+
+import axios from "axios";
+const VITE_BACKEND_ENDPOINT_URL = import.meta.env.VITE_BACKEND_ENDPOINT_URL;
+
+const FreeAPI = axios.create({
+  baseURL: VITE_BACKEND_ENDPOINT_URL,
+});
+
+// Attach token to headers if available
+FreeAPI.interceptors.request.use(config => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default FreeAPI;
+
+import React, { createContext, useReducer } from 'react';
+import { AppReducer, initialState } from './AppReducer';
+
+export const GlobalContext = createContext();
+
+export const GlobalProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(AppReducer, initialState);
+
+  return (
+    <GlobalContext.Provider value={{ state, dispatch }}>
+      {children}
+    </GlobalContext.Provider>
+  );
+};
+import { useEffect } from "react";
+import { Routes, Route, useNavigate } from "react-router-dom";
+import { Home } from "./components/Home";
+import { DetailsPage } from "./components/DetailsPage";
+import { Login } from "./components/Login";
+import { Register } from "./components/Register";
+import { ProtectedRoute } from "./routeAuthentication/ProtectedRoute ";
+import { Forgot } from "./components/Forgot";
+import { ResetPassword } from "./components/ResetPassword";
+import { Toaster } from "react-hot-toast";
+import {
+  isTokenExpired,
+  refreshAccessToken,
+} from "./services/ApiServiceProvider";
+import { FreeAccessRoute } from "./routeAuthentication/FreeAccessRoute";
+
+function App() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const accessToken = localStorage.getItem("token");
+      const refreshToken = localStorage.getItem("refreshToken");
+
+      if (!accessToken || !refreshToken) {
+        navigate("/login");
+        return;
+      }
+
+      // console.log("i am from istoken => ", isTokenExpired(accessToken));
+
+      if (isTokenExpired(accessToken)) {
+        try {
+          const response = await refreshAccessToken(refreshToken);
+
+          if (response.status === 200) {
+            const newAccessToken = response.data.data.access_token;
+            const newRefreshToken = response.data.data.refresh_token;
+
+            localStorage.setItem("token", newAccessToken);
+            localStorage.setItem("refreshToken", newRefreshToken);
+            // console.log("Access token refreshed.");
+          } else {
+            navigate("/login");
+          }
+        } catch (error) {
+          console.error("Token refresh failed:", error);
+          navigate("/login");
+        }
+      } else {
+        // Token is valid, proceed as normal
+        // console.log("Token is valid, continue rendering");
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // }, [navigate]);
+
+  return (
+    <>
+      <Toaster />
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <FreeAccessRoute>
+              <Login />
+            </FreeAccessRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <FreeAccessRoute>
+              <Register />
+            </FreeAccessRoute>
+          }
+        />
+        <Route
+          path="/forgot"
+          element={
+            <FreeAccessRoute>
+              <Forgot />
+            </FreeAccessRoute>
+          }
+        />
+        <Route
+          path="/resetpassword"
+          element={
+            <FreeAccessRoute>
+              <ResetPassword />
+            </FreeAccessRoute>
+          }
+        />
+        <Route
+          path="/detailspage"
+          element={
+            <ProtectedRoute>
+              <DetailsPage />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import { Routes, Route } from "react-router-dom";
+// import { Home } from "./components/Home";
+// import { useHistory } from 'react-router-dom';
+// import { DetailsPage } from "./components/DetailsPage";
+// import { Login } from "./components/Login";
+// import { Register } from "./components/Register";
+// import { Verification } from "./components/Verification";
+// import { ProtectedRoute } from "./routeAuthentication/ProtectedRoute ";
+// import { Forgot } from "./components/Forgot";
+// import { ResetPassword } from "./components/ResetPassword";
+// import { Toaster } from 'react-hot-toast';
+// import { Sample } from "./components/Sample";
+// import { isTokenExpired, refreshAccessToken } from "./services/ApiServiceProvider";
+
+// function App() {
+//   const history = useHistory();
+
+//   useEffect(() => {
+//     const accessToken = localStorage.getItem('token');
+//     const refreshToken = localStorage.getItem('refreshToken');
+
+//     if (!accessToken || !refreshToken) {
+//       history.push('/login');
+//       return;
+//     }
+
+//     if (!isTokenExpired(accessToken)) {
+//       // Access token is expired, attempt to refresh
+//      const response =  refreshAccessToken(refreshToken)
+//         if (response.status === 200) {
+
+//            // Token refreshed, proceed to render
+//            const newAccessToken = response.data.data.access_token;
+//            const newRefreshToken = response.data.data.refresh_token;
+
+//            localStorage.setItem("token", newAccessToken);
+//            localStorage.setItem("refreshToken", newRefreshToken);
+//         } else {
+//           // Refresh failed, redirect to login
+//           history.push('/login');
+//         }
+//     } else {
+//       // Access token is valid, proceed to render
+//       WHAT TO DO HERE
+//     }
+//   }, [history]);
+
+//   return (
+// <>
+//  <Toaster />
+//   <Routes>
+//     <Route
+//       path="/"
+//       element={
+//         <ProtectedRoute>
+//           <Home />
+//         </ProtectedRoute>
+//       }
+//     />
+//     <Route path="/login" element={<Login />} />
+//     <Route path="/register" element={<Register />} />
+//     <Route path="/verification" element={<Verification />} />
+//     <Route path="/forgot" element={<Forgot />} />
+//     <Route path="/resetpassword" element={<ResetPassword />} />
+//     <Route path="/sample" element={<Sample />} />
+//     <Route
+//       path="/detailspage"
+//       element={
+//         <ProtectedRoute>
+//           <DetailsPage />
+//         </ProtectedRoute>
+//       }
+//     />
+//   </Routes>
+// </>
+//   );
+// }
+
+// export default App;
+
+// `````
+
